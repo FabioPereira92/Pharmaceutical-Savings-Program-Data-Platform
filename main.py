@@ -20,6 +20,14 @@ import ast
 from dotenv import load_dotenv
 from urllib.parse import urljoin, quote_plus, urlparse, urlunparse, parse_qsl, urlencode
 
+# REFACTORING NOTE: crawl4ai is now used for HTML page fetching in ai_extract_full_schema_from_page
+# and ai_extract_full_schema_two_pass functions. Selenium is ONLY used for:
+# 1. GoodRx manufacturer modal scraping (get_goodrx_manufacturer_modal)
+# 2. co-pay.com fallback extraction (co_pay_search_and_extract)
+# 3. PDF URLs still route to ai_extract_from_pdf (PyMuPDF/pdfplumber)
+# This avoids bot blocks and improves reliability for regular HTML page scraping.
+from crawl4ai_fetch import crawl4ai_fetch
+
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
