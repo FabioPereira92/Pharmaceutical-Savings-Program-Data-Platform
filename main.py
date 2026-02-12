@@ -1371,32 +1371,40 @@ def ai_extract_full_schema_from_page(browser, url: str, drug_name: str, model: s
         except Exception:
             pass
 
-        browser.get(url)
-        time.sleep(1.0)
+        # Use crawl4ai_fetch instead of Selenium
+        fetch_result = crawl4ai_fetch(url, timeout_s=30)
 
-        try:
-            current = browser.current_url or ""
-        except Exception:
-            current = ""
+        # Check if blocked
+        if fetch_result.get("blocked", False):
+            reason = fetch_result.get("block_reason", "unknown")
+            log_parts.append(f"page_blocked:{reason}")
+            return None, ";".join(log_parts)
+
+        current = fetch_result.get("final_url", url)
         if not current or current.startswith("about:"):
             log_parts.append("nav_failed_about_blank")
             return None, ";".join(log_parts)
 
-        try:
-            title = (browser.title or "").lower()
-        except Exception:
-            title = ""
-        blocked_markers = ["access denied", "forbidden", "attention required", "are you a robot", "captcha", "cloudflare"]
-        if any(m in title for m in blocked_markers):
-            log_parts.append(f"nav_blocked_title={title[:80]}")
+        page_text = fetch_result.get("text", "")
+        if len(page_text.strip()) < 30:
+            log_parts.append("page_too_short")
             return None, ";".join(log_parts)
 
-        try:
-            page_text = browser.execute_script("return document.body.innerText || ''")
-        except Exception:
-            page_text = browser.page_source or ""
-
-        link_map_text = _collect_dom_links_and_forms(browser, max_items=250)
+        # Build link map from crawl4ai results
+        links = fetch_result.get("links", [])
+        forms = fetch_result.get("forms", [])
+        link_map_parts = []
+        for lnk in links[:250]:
+            label = lnk.get("label", "").strip()
+            href = lnk.get("href", "").strip()
+            if label and href:
+                link_map_parts.append(f'  "{label}" => {href}')
+        for frm in forms[:50]:
+            action = frm.get("action", "").strip()
+            method = frm.get("method", "GET").upper()
+            if action:
+                link_map_parts.append(f'  <form {method}> => {action}')
+        link_map_text = "\n".join(link_map_parts) if link_map_parts else ""
         if not link_map_text:
             log_parts.append("no_links_collected")
 
@@ -1662,40 +1670,54 @@ def ai_extract_full_schema_two_pass(browser, url: str, drug_name: str, model: st
     # Link selection context
     selected_urls: List[str] = []
     try:
-        browser.get(url)
-        time.sleep(1.0)
-        try:
-            page_text = browser.execute_script("return document.body.innerText || ''") or ""
-        except Exception:
-            page_text = browser.page_source or ""
+        # Use crawl4ai_fetch to get page content and links
+        fetch_result = crawl4ai_fetch(url, timeout_s=30)
 
-        links_struct = _collect_dom_links_structured(browser, max_items=350)
-        logs.append(f"links_collected={len(links_struct)}")
+        if fetch_result.get("blocked", False):
+            logs.append(f"link_page_blocked:{fetch_result.get('block_reason', 'unknown')}")
+            selected_urls = []
+        else:
+            page_text = fetch_result.get("text", "")
 
-        idxs, sel_log = ai_select_followup_link_indexes(drug_name, url, links_struct, page_text, model=model, max_links=3)
-        logs.append(f"link_select:{sel_log}; idxs={idxs}")
-
-        links_trim = links_struct[:220]
-        for ix in idxs:
-            try:
-                item = links_trim[ix - 1]
-                href = (item.get("href") or "").strip()
+            # Convert crawl4ai links to structured format
+            links_from_fetch = fetch_result.get("links", [])
+            links_struct = []
+            for idx, lnk in enumerate(links_from_fetch[:350], start=1):
+                label = lnk.get("label", "").strip()
+                href = lnk.get("href", "").strip()
                 if href:
-                    selected_urls.append(href)
-            except Exception:
-                continue
+                    links_struct.append({
+                        "index": idx,
+                        "label": label,
+                        "href": href
+                    })
 
-        if not selected_urls and links_struct:
-            heur = []
-            for it in links_struct:
-                href = (it.get("href") or "").strip()
-                label = (it.get("label") or "").strip()
-                if href and _is_probably_relevant_link(label, href):
-                    heur.append(href)
-                if len(heur) >= 3:
-                    break
-            selected_urls = heur
-            logs.append(f"heuristic_links_used={len(selected_urls)}")
+            logs.append(f"links_collected={len(links_struct)}")
+
+            idxs, sel_log = ai_select_followup_link_indexes(drug_name, url, links_struct, page_text, model=model, max_links=3)
+            logs.append(f"link_select:{sel_log}; idxs={idxs}")
+
+            links_trim = links_struct[:220]
+            for ix in idxs:
+                try:
+                    item = links_trim[ix - 1]
+                    href = (item.get("href") or "").strip()
+                    if href:
+                        selected_urls.append(href)
+                except Exception:
+                    continue
+
+            if not selected_urls and links_struct:
+                heur = []
+                for it in links_struct:
+                    href = (it.get("href") or "").strip()
+                    label = (it.get("label") or "").strip()
+                    if href and _is_probably_relevant_link(label, href):
+                        heur.append(href)
+                    if len(heur) >= 3:
+                        break
+                selected_urls = heur
+                logs.append(f"heuristic_links_used={len(selected_urls)}")
 
         seen = set()
         final = []
