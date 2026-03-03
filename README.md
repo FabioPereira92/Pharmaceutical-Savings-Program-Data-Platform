@@ -295,4 +295,4 @@ It reflects backend engineering and data platform thinking — not toy automatio
 
 ## License
 
-Add your preferred license (MIT / Apache 2.0 / Proprietary).
+Proprietary
