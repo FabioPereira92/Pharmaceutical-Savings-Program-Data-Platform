@@ -200,3 +200,99 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install openpyxl selenium python-dotenv requests openai PyMuPDF pdfplumber
+```
+
+## Configuration
+
+Create a `.env` file in the project root with your OpenAI API key:
+
+OPENAI_API_KEY=your_key_here
+
+---
+
+## Input Format
+
+Excel file: Database_Send (2).xlsx
+
+Expected structure:
+
+| drug_name | type    |
+|-----------|---------|
+| Zepbound  | brand   |
+| Humira    | brand   |
+| Metformin | generic |
+
+Only rows marked "brand" are processed.
+
+---
+
+## Running
+
+Run the script:
+
+python main.py
+
+---
+
+## Outputs
+
+The script generates:
+
+- goodrx_coupons.db (SQLite database)
+- Structured schema JSON per processed drug
+- Logged extraction trails stored in the database
+
+---
+
+## Failure Handling & Edge Cases
+
+The system explicitly handles:
+
+- Missing manufacturer modals  
+- Blocked pages  
+- Cookie walls  
+- JS-rendered shells  
+- Dead links  
+- PDF-only programs  
+- Aggregator-only results  
+- Discount-card noise  
+- Multi-program conflicts  
+
+Every extraction is logged for traceability and auditing.
+
+---
+
+## Why This Project Matters
+
+This is not a simple scraper.
+
+It demonstrates:
+
+- Multi-source orchestration  
+- AI integration with strict schema control  
+- Deterministic ranking systems  
+- Failure-aware automation  
+- Structured data modeling  
+- Real-world edge case handling  
+- Production-style persistence  
+- Defensive programming patterns  
+
+It reflects backend engineering and data platform thinking — not toy automation.
+
+---
+
+## Potential Extensions
+
+- REST API layer  
+- Dockerized deployment  
+- PostgreSQL migration  
+- Scheduled job execution  
+- Program versioning  
+- Cost analysis modeling  
+- Automated monitoring  
+
+---
+
+## License
+
+Add your preferred license (MIT / Apache 2.0 / Proprietary).
